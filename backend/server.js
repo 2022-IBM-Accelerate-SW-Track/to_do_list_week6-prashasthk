@@ -5,7 +5,19 @@ const express = require("express"),
 const bodyParser = require('body-parser');
 const fs = require("fs");
 
-app.use(cors());
+const basicAuth = require("express-basic-auth");
+var { authenticator, upsertUser, cookieAuth } = require("./authentication");
+const auth = basicAuth({
+    authorizer: authenticator
+});
+const cookieParser = require("cookie-parser");
+app.use(cookieParser("82e4e438a0705fabf61f9854e3b575af"));
+
+app.use(cors({
+  credentials: true,
+  origin: 'http://localhost:3000'
+}));
+
 app.use(bodyParser.json({ extended: true }));
 app.listen(port, () => console.log("Backend server live on " + port));
 
@@ -55,7 +67,7 @@ app.get("/get/items", getItems)
 
 app.get("/get/searchitem",searchItems)
 //**week 5, search items service */
-  function searchItems (request, response) {
+function searchItems (request, response) {
     //begin here
     var searchField = request.query.taskname;
     //uncomment to see the searchField passed in
@@ -68,4 +80,23 @@ app.get("/get/searchitem",searchItems)
     //console.log(returnData);
     response.json(returnData);
     //Note this won't work, why? response.send();
-  }
+}
+
+app.get("/authenticate", auth, (req, res) => {
+  console.log(`user logging in: ${req.auth.user}`);
+  res.cookie('user', req.auth.user, { signed: true });
+  res.sendStatus(200);
+});
+
+app.post("/users", (req, res) => {
+  const b64auth = (req.headers.authorization || '').split(' ')[1] || ''
+  const [username, password] = Buffer.from(b64auth, 'base64').toString().split(':')
+  const upsertSucceeded = upsertUser(username, password)
+  res.sendStatus(upsertSucceeded ? 200 : 401);
+});
+
+app.get("/logout", (req, res) => {
+  res.clearCookie('user');
+  res.end();
+});
+
